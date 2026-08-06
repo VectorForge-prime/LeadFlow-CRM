@@ -58,11 +58,19 @@ function getMonthDays(year, month) {
 
   const days = [];
 
-  for (let index = 0; index < startOffset; index += 1) {
+  for (
+    let index = 0;
+    index < startOffset;
+    index += 1
+  ) {
     days.push(null);
   }
 
-  for (let day = 1; day <= daysInMonth; day += 1) {
+  for (
+    let day = 1;
+    day <= daysInMonth;
+    day += 1
+  ) {
     days.push(day);
   }
 
@@ -93,6 +101,20 @@ function normalizeEvent(databaseEvent) {
     notes: databaseEvent.notes ?? "",
     createdAt: databaseEvent.created_at,
   };
+}
+
+function getEventClass(type) {
+  return type
+    .toLowerCase()
+    .replaceAll(" ", "-");
+}
+
+function formatSelectedDate(date) {
+  return new Intl.DateTimeFormat("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  }).format(new Date(`${date}T12:00:00`));
 }
 
 function Calendar() {
@@ -144,7 +166,9 @@ function Calendar() {
       setLoading(true);
       setErrorMessage("");
 
-      const { data, error } = await getEvents(user.id);
+      const { data, error } = await getEvents(
+        user.id
+      );
 
       if (!isMounted) {
         return;
@@ -154,7 +178,9 @@ function Calendar() {
         setEvents([]);
         setErrorMessage(error.message);
       } else {
-        setEvents((data ?? []).map(normalizeEvent));
+        setEvents(
+          (data ?? []).map(normalizeEvent)
+        );
       }
 
       setLoading(false);
@@ -168,7 +194,11 @@ function Calendar() {
   }, [user?.id]);
 
   const calendarDays = useMemo(
-    () => getMonthDays(currentYear, currentMonth),
+    () =>
+      getMonthDays(
+        currentYear,
+        currentMonth
+      ),
     [currentYear, currentMonth]
   );
 
@@ -194,26 +224,26 @@ function Calendar() {
           calendarEvent.date >= todayKey
       )
       .sort((firstEvent, secondEvent) => {
-        const firstValue = `${firstEvent.date}T${
-          firstEvent.time || "00:00"
-        }`;
+        const firstValue = `${
+          firstEvent.date
+        }T${firstEvent.time || "00:00"}`;
 
-        const secondValue = `${secondEvent.date}T${
-          secondEvent.time || "00:00"
-        }`;
+        const secondValue = `${
+          secondEvent.date
+        }T${secondEvent.time || "00:00"}`;
 
-        return firstValue.localeCompare(secondValue);
+        return firstValue.localeCompare(
+          secondValue
+        );
       })
       .slice(0, 5);
   }, [events, todayKey]);
 
-  const monthLabel = new Intl.DateTimeFormat(
-    "en-US",
-    {
+  const monthLabel =
+    new Intl.DateTimeFormat("en-US", {
       month: "long",
       year: "numeric",
-    }
-  ).format(currentDate);
+    }).format(currentDate);
 
   const meetingCount = events.filter(
     (calendarEvent) =>
@@ -304,10 +334,11 @@ function Calendar() {
     };
 
     if (editingEventId) {
-      const { data, error } = await updateEvent(
-        editingEventId,
-        eventPayload
-      );
+      const { data, error } =
+        await updateEvent(
+          editingEventId,
+          eventPayload
+        );
 
       if (error) {
         setErrorMessage(error.message);
@@ -315,22 +346,26 @@ function Calendar() {
         return;
       }
 
-      const updatedEvent = normalizeEvent(data);
+      const updatedEvent =
+        normalizeEvent(data);
 
       setEvents((currentEvents) =>
-        currentEvents.map((calendarEvent) =>
-          calendarEvent.id === editingEventId
-            ? updatedEvent
-            : calendarEvent
+        currentEvents.map(
+          (calendarEvent) =>
+            calendarEvent.id ===
+            editingEventId
+              ? updatedEvent
+              : calendarEvent
         )
       );
 
       setSelectedDate(updatedEvent.date);
     } else {
-      const { data, error } = await createEvent(
-        user.id,
-        eventPayload
-      );
+      const { data, error } =
+        await createEvent(
+          user.id,
+          eventPayload
+        );
 
       if (error) {
         setErrorMessage(error.message);
@@ -380,7 +415,9 @@ function Calendar() {
 
     setErrorMessage("");
 
-    const { error } = await deleteEvent(eventId);
+    const { error } = await deleteEvent(
+      eventId
+    );
 
     if (error) {
       setErrorMessage(error.message);
@@ -409,6 +446,24 @@ function Calendar() {
     setSelectedDate(todayKey);
   }
 
+  function openUpcomingEvent(
+    calendarEvent
+  ) {
+    const eventDate = new Date(
+      `${calendarEvent.date}T12:00:00`
+    );
+
+    setCurrentDate(
+      new Date(
+        eventDate.getFullYear(),
+        eventDate.getMonth(),
+        1
+      )
+    );
+
+    setSelectedDate(calendarEvent.date);
+  }
+
   return (
     <AppLayout>
       <section className="calendar-page">
@@ -421,8 +476,8 @@ function Calendar() {
             <h1>Calendar</h1>
 
             <p>
-              Manage meetings, customer calls and follow-up
-              activities.
+              Manage meetings, customer calls
+              and follow-up activities.
             </p>
           </div>
 
@@ -472,7 +527,9 @@ function Calendar() {
 
             <div>
               <span>Selected day</span>
-              <strong>{selectedEvents.length}</strong>
+              <strong>
+                {selectedEvents.length}
+              </strong>
             </div>
           </article>
         </section>
@@ -480,6 +537,7 @@ function Calendar() {
         {loading ? (
           <div className="calendar-loading">
             <div className="route-loading-spinner" />
+
             <p>Loading calendar...</p>
           </div>
         ) : (
@@ -490,8 +548,8 @@ function Calendar() {
                   <h2>{monthLabel}</h2>
 
                   <p>
-                    Select a date to view scheduled
-                    activities.
+                    Select a date to view
+                    scheduled activities.
                   </p>
                 </div>
 
@@ -499,7 +557,9 @@ function Calendar() {
                   <button
                     type="button"
                     aria-label="Previous month"
-                    onClick={() => changeMonth(-1)}
+                    onClick={() =>
+                      changeMonth(-1)
+                    }
                   >
                     <ChevronLeft size={19} />
                   </button>
@@ -515,7 +575,9 @@ function Calendar() {
                   <button
                     type="button"
                     aria-label="Next month"
-                    onClick={() => changeMonth(1)}
+                    onClick={() =>
+                      changeMonth(1)
+                    }
                   >
                     <ChevronRight size={19} />
                   </button>
@@ -531,78 +593,98 @@ function Calendar() {
               </div>
 
               <div className="calendar-grid">
-                {calendarDays.map((day, index) => {
-                  if (!day) {
+                {calendarDays.map(
+                  (day, index) => {
+                    if (!day) {
+                      return (
+                        <div
+                          className="calendar-day calendar-day-empty"
+                          key={`empty-${index}`}
+                        />
+                      );
+                    }
+
+                    const dateKey =
+                      formatDateKey(
+                        currentYear,
+                        currentMonth,
+                        day
+                      );
+
+                    const dayEvents =
+                      events.filter(
+                        (calendarEvent) =>
+                          calendarEvent.date ===
+                          dateKey
+                      );
+
+                    const isSelected =
+                      selectedDate === dateKey;
+
+                    const isToday =
+                      todayKey === dateKey;
+
                     return (
-                      <div
-                        className="calendar-day calendar-day-empty"
-                        key={`empty-${index}`}
-                      />
+                      <button
+                        className={`calendar-day ${
+                          isSelected
+                            ? "selected"
+                            : ""
+                        } ${
+                          isToday
+                            ? "today"
+                            : ""
+                        }`}
+                        type="button"
+                        key={dateKey}
+                        onClick={() =>
+                          setSelectedDate(
+                            dateKey
+                          )
+                        }
+                      >
+                        <span className="calendar-day-number">
+                          {day}
+                        </span>
+
+                        <div className="calendar-day-events">
+                          {dayEvents
+                            .slice(0, 2)
+                            .map(
+                              (
+                                calendarEvent
+                              ) => (
+                                <span
+                                  className={`calendar-event-dot ${getEventClass(
+                                    calendarEvent.type
+                                  )}`}
+                                  key={
+                                    calendarEvent.id
+                                  }
+                                >
+                                  {calendarEvent.time ||
+                                    "All day"}{" "}
+                                  {
+                                    calendarEvent.title
+                                  }
+                                </span>
+                              )
+                            )}
+
+                          {dayEvents.length >
+                            2 && (
+                            <small>
+                              +
+                              {dayEvents.length -
+                                2}{" "}
+                              more
+                            </small>
+                          )}
+                        </div>
+                      </button>
                     );
                   }
-
-                  const dateKey = formatDateKey(
-                    currentYear,
-                    currentMonth,
-                    day
-                  );
-
-                  const dayEvents = events.filter(
-                    (calendarEvent) =>
-                      calendarEvent.date === dateKey
-                  );
-
-                  const isSelected =
-                    selectedDate === dateKey;
-
-                  const isToday =
-                    todayKey === dateKey;
-
-                  return (
-                    <button
-                      className={`calendar-day ${
-                        isSelected ? "selected" : ""
-                      } ${
-                        isToday ? "today" : ""
-                      }`}
-                      type="button"
-                      key={dateKey}
-                      onClick={() =>
-                        setSelectedDate(dateKey)
-                      }
-                    >
-                      <span className="calendar-day-number">
-                        {day}
-                      </span>
-
-                      <div className="calendar-day-events">
-                        {dayEvents
-                          .slice(0, 2)
-                          .map((calendarEvent) => (
-                            <span
-                              className={`calendar-event-dot ${calendarEvent.type
-                                .toLowerCase()
-                                .replaceAll(
-                                  " ",
-                                  "-"
-                                )}`}
-                              key={calendarEvent.id}
-                            >
-                              {calendarEvent.time ||
-                                "All day"}{" "}
-                              {calendarEvent.title}
-                            </span>
-                          ))}
-
-                        {dayEvents.length > 2 && (
-                          <small>
-                            +{dayEvents.length - 2} more
-                          </small>
-                        )}
-                      </div>
-                    </button>
-                  );
-                })}
+                )}
               </div>
             </article>
 
@@ -613,17 +695,8 @@ function Calendar() {
                     <h2>Selected date</h2>
 
                     <p>
-                      {new Intl.DateTimeFormat(
-                        "en-US",
-                        {
-                          month: "long",
-                          day: "numeric",
-                          year: "numeric",
-                        }
-                      ).format(
-                        new Date(
-                          `${selectedDate}T12:00:00`
-                        )
+                      {formatSelectedDate(
+                        selectedDate
                       )}
                     </p>
                   </div>
@@ -631,7 +704,9 @@ function Calendar() {
                   <button
                     className="calendar-small-add"
                     type="button"
-                    onClick={openAddEventModal}
+                    onClick={
+                      openAddEventModal
+                    }
                     aria-label="Add event"
                   >
                     <Plus size={18} />
@@ -646,18 +721,17 @@ function Calendar() {
                         key={calendarEvent.id}
                       >
                         <div
-                          className={`selected-event-type ${calendarEvent.type
-                            .toLowerCase()
-                            .replaceAll(
-                              " ",
-                              "-"
-                            )}`}
+                          className={`selected-event-type ${getEventClass(
+                            calendarEvent.type
+                          )}`}
                         />
 
                         <div className="selected-event-content">
                           <div className="selected-event-title-row">
                             <h3>
-                              {calendarEvent.title}
+                              {
+                                calendarEvent.title
+                              }
                             </h3>
 
                             <div className="calendar-event-actions">
@@ -670,7 +744,9 @@ function Calendar() {
                                   )
                                 }
                               >
-                                <Edit3 size={15} />
+                                <Edit3
+                                  size={15}
+                                />
                               </button>
 
                               <button
@@ -683,32 +759,39 @@ function Calendar() {
                                   )
                                 }
                               >
-                                <Trash2 size={15} />
+                                <Trash2
+                                  size={15}
+                                />
                               </button>
                             </div>
                           </div>
 
                           <p>
                             <Clock3 size={13} />
+
                             {calendarEvent.time ||
                               "All day"}
                           </p>
 
                           <p>
                             <User size={13} />
+
                             {calendarEvent.customer ||
                               "No participant"}
                           </p>
 
                           <p>
                             <MapPin size={13} />
+
                             {calendarEvent.location ||
                               "No location"}
                           </p>
 
                           {calendarEvent.notes && (
                             <p className="calendar-event-notes">
-                              {calendarEvent.notes}
+                              {
+                                calendarEvent.notes
+                              }
                             </p>
                           )}
                         </div>
@@ -716,15 +799,20 @@ function Calendar() {
                     )
                   )}
 
-                  {selectedEvents.length === 0 && (
+                  {selectedEvents.length ===
+                    0 && (
                     <div className="calendar-no-events">
-                      <CalendarDays size={30} />
+                      <CalendarDays
+                        size={30}
+                      />
 
-                      <h3>No events scheduled</h3>
+                      <h3>
+                        No events scheduled
+                      </h3>
 
                       <p>
-                        Add a new activity for this
-                        date.
+                        Add a new activity
+                        for this date.
                       </p>
                     </div>
                   )}
@@ -735,7 +823,10 @@ function Calendar() {
                 <div className="calendar-side-card-header">
                   <div>
                     <h2>Upcoming events</h2>
-                    <p>Next scheduled activities</p>
+
+                    <p>
+                      Next scheduled activities
+                    </p>
                   </div>
                 </div>
 
@@ -746,23 +837,11 @@ function Calendar() {
                         className="upcoming-event-item"
                         type="button"
                         key={calendarEvent.id}
-                        onClick={() => {
-                          const eventDate = new Date(
-                            `${calendarEvent.date}T12:00:00`
-                          );
-
-                          setCurrentDate(
-                            new Date(
-                              eventDate.getFullYear(),
-                              eventDate.getMonth(),
-                              1
-                            )
-                          );
-
-                          setSelectedDate(
-                            calendarEvent.date
-                          );
-                        }}
+                        onClick={() =>
+                          openUpcomingEvent(
+                            calendarEvent
+                          )
+                        }
                       >
                         <div className="upcoming-event-date">
                           <strong>
@@ -775,7 +854,8 @@ function Calendar() {
                             {new Intl.DateTimeFormat(
                               "en-US",
                               {
-                                month: "short",
+                                month:
+                                  "short",
                               }
                             ).format(
                               new Date(
@@ -787,7 +867,9 @@ function Calendar() {
 
                         <div>
                           <strong>
-                            {calendarEvent.title}
+                            {
+                              calendarEvent.title
+                            }
                           </strong>
 
                           <span>
@@ -802,10 +884,16 @@ function Calendar() {
                     )
                   )}
 
-                  {upcomingEvents.length === 0 && (
+                  {upcomingEvents.length ===
+                    0 && (
                     <div className="calendar-no-events">
-                      <CalendarDays size={30} />
-                      <h3>No upcoming events</h3>
+                      <CalendarDays
+                        size={30}
+                      />
+
+                      <h3>
+                        No upcoming events
+                      </h3>
                     </div>
                   )}
                 </div>
@@ -888,7 +976,9 @@ function Calendar() {
                     name="date"
                     type="date"
                     value={formData.date}
-                    onChange={handleInputChange}
+                    onChange={
+                      handleInputChange
+                    }
                   />
                 </label>
 
@@ -899,7 +989,9 @@ function Calendar() {
                     name="time"
                     type="time"
                     value={formData.time}
-                    onChange={handleInputChange}
+                    onChange={
+                      handleInputChange
+                    }
                   />
                 </label>
 
@@ -909,17 +1001,22 @@ function Calendar() {
                   <select
                     name="type"
                     value={formData.type}
-                    onChange={handleInputChange}
+                    onChange={
+                      handleInputChange
+                    }
                   >
                     <option value="Meeting">
                       Meeting
                     </option>
+
                     <option value="Call">
                       Call
                     </option>
+
                     <option value="Follow-up">
                       Follow-up
                     </option>
+
                     <option value="Internal">
                       Internal
                     </option>
@@ -933,8 +1030,12 @@ function Calendar() {
                     name="customer"
                     type="text"
                     placeholder="Customer name"
-                    value={formData.customer}
-                    onChange={handleInputChange}
+                    value={
+                      formData.customer
+                    }
+                    onChange={
+                      handleInputChange
+                    }
                   />
                 </label>
               </div>

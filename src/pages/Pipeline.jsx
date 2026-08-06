@@ -1,45 +1,51 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   Building2,
-  DollarSign,
+  CircleDollarSign,
   GripVertical,
-  Search,
+  Mail,
   Target,
-  User,
+  TrendingUp,
+  UserRound,
 } from "lucide-react";
 
 import AppLayout from "../components/layout/AppLayout";
 import { useAuth } from "../context/AuthContext";
-
 import {
   getLeads,
-  updateLeadStatus,
+  updateLead,
 } from "../services/leadsService";
 
 const pipelineStages = [
   {
     name: "New",
-    className: "new",
+    label: "New leads",
+    description: "Recently added opportunities",
   },
   {
     name: "Contacted",
-    className: "contacted",
+    label: "Contacted",
+    description: "Initial communication started",
   },
   {
     name: "Qualified",
-    className: "qualified",
+    label: "Qualified",
+    description: "Potential customers validated",
   },
   {
     name: "Proposal",
-    className: "proposal",
+    label: "Proposal",
+    description: "Offer or proposal submitted",
   },
   {
     name: "Won",
-    className: "won",
+    label: "Won",
+    description: "Successfully converted deals",
   },
   {
     name: "Lost",
-    className: "lost",
+    label: "Lost",
+    description: "Closed opportunities",
   },
 ];
 
@@ -65,17 +71,34 @@ function getInitials(name) {
     .toUpperCase();
 }
 
+function normalizeLead(databaseLead) {
+  return {
+    id: databaseLead.id,
+    userId: databaseLead.user_id,
+    name: databaseLead.name,
+    email: databaseLead.email,
+    phone: databaseLead.phone ?? "",
+    company: databaseLead.company,
+    source: databaseLead.source,
+    status: databaseLead.status,
+    priority: databaseLead.priority,
+    value: Number(databaseLead.value) || 0,
+    assignedTo:
+      databaseLead.assigned_to || "Unassigned",
+    createdAt: databaseLead.created_at,
+    updatedAt: databaseLead.updated_at,
+  };
+}
+
 function Pipeline() {
   const { user } = useAuth();
 
   const [leads, setLeads] = useState([]);
-  const [searchTerm, setSearchTerm] = useState("");
-
   const [loading, setLoading] = useState(true);
-  const [movingLeadId, setMovingLeadId] = useState(null);
-  const [draggedLeadId, setDraggedLeadId] = useState(null);
-  const [dragOverStage, setDragOverStage] = useState("");
-  const [errorMessage, setErrorMessage] = useState("");
+  const [movingLeadId, setMovingLeadId] =
+    useState(null);
+  const [errorMessage, setErrorMessage] =
+    useState("");
 
   useEffect(() => {
     if (!user?.id) {
@@ -84,11 +107,13 @@ function Pipeline() {
 
     let isMounted = true;
 
-    async function loadPipeline() {
+    async function loadLeads() {
       setLoading(true);
       setErrorMessage("");
 
-      const { data, error } = await getLeads(user.id);
+      const { data, error } = await getLeads(
+        user.id
+      );
 
       if (!isMounted) {
         return;
@@ -98,66 +123,97 @@ function Pipeline() {
         setLeads([]);
         setErrorMessage(error.message);
       } else {
-        setLeads(data ?? []);
+        setLeads(
+          (data ?? []).map(normalizeLead)
+        );
       }
 
       setLoading(false);
     }
 
-    loadPipeline();
+    loadLeads();
 
     return () => {
       isMounted = false;
     };
   }, [user?.id]);
 
-  const filteredLeads = useMemo(() => {
-    const normalizedSearch = searchTerm.trim().toLowerCase();
-
-    return leads.filter((lead) => {
-      return (
-        lead.name.toLowerCase().includes(normalizedSearch) ||
-        lead.company.toLowerCase().includes(normalizedSearch) ||
-        lead.email.toLowerCase().includes(normalizedSearch) ||
-        lead.source.toLowerCase().includes(normalizedSearch)
-      );
-    });
-  }, [leads, searchTerm]);
-
-  const totalPipelineValue = leads
-    .filter((lead) => lead.status !== "Lost")
-    .reduce(
-      (total, lead) => total + Number(lead.value || 0),
+  const metrics = useMemo(() => {
+    const totalPipelineValue = leads.reduce(
+      (total, lead) =>
+        total + Number(lead.value || 0),
       0
     );
 
-  const wonLeads = leads.filter(
-    (lead) => lead.status === "Won"
-  );
+    const wonLeads = leads.filter(
+      (lead) => lead.status === "Won"
+    );
 
-  const wonValue = wonLeads.reduce(
-    (total, lead) => total + Number(lead.value || 0),
-    0
-  );
+    const wonValue = wonLeads.reduce(
+      (total, lead) =>
+        total + Number(lead.value || 0),
+      0
+    );
 
-  const winRate =
-    leads.length === 0
-      ? 0
-      : Math.round((wonLeads.length / leads.length) * 100);
+    const activeLeads = leads.filter(
+      (lead) =>
+        !["Won", "Lost"].includes(lead.status)
+    );
 
-  async function moveLead(leadId, newStatus) {
-    const currentLead = leads.find(
+    const conversionRate =
+      leads.length === 0
+        ? 0
+        : Math.round(
+            (wonLeads.length / leads.length) * 100
+          );
+
+    return {
+      totalPipelineValue,
+      wonValue,
+      activeLeads: activeLeads.length,
+      conversionRate,
+    };
+  }, [leads]);
+
+  function handleDragStart(event, leadId) {
+    event.dataTransfer.setData(
+      "leadId",
+      leadId
+    );
+
+    event.dataTransfer.effectAllowed = "move";
+    setMovingLeadId(leadId);
+  }
+
+  function handleDragEnd() {
+    setMovingLeadId(null);
+  }
+
+  function handleDragOver(event) {
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+  }
+
+  async function handleDrop(event, newStatus) {
+    event.preventDefault();
+
+    const leadId =
+      event.dataTransfer.getData("leadId");
+
+    const selectedLead = leads.find(
       (lead) => lead.id === leadId
     );
 
-    if (!currentLead || currentLead.status === newStatus) {
+    setMovingLeadId(null);
+
+    if (
+      !selectedLead ||
+      selectedLead.status === newStatus
+    ) {
       return;
     }
 
-    const previousStatus = currentLead.status;
-
-    setErrorMessage("");
-    setMovingLeadId(leadId);
+    const previousStatus = selectedLead.status;
 
     setLeads((currentLeads) =>
       currentLeads.map((lead) =>
@@ -170,9 +226,21 @@ function Pipeline() {
       )
     );
 
-    const { data, error } = await updateLeadStatus(
+    const leadPayload = {
+      name: selectedLead.name,
+      email: selectedLead.email,
+      phone: selectedLead.phone,
+      company: selectedLead.company,
+      source: selectedLead.source,
+      status: newStatus,
+      priority: selectedLead.priority,
+      value: selectedLead.value,
+      assignedTo: selectedLead.assignedTo,
+    };
+
+    const { data, error } = await updateLead(
       leadId,
-      newStatus
+      leadPayload
     );
 
     if (error) {
@@ -188,70 +256,57 @@ function Pipeline() {
       );
 
       setErrorMessage(error.message);
-      setMovingLeadId(null);
       return;
     }
 
-    setLeads((currentLeads) =>
-      currentLeads.map((lead) =>
-        lead.id === leadId ? data : lead
-      )
+    if (data) {
+      const updatedLead = normalizeLead(data);
+
+      setLeads((currentLeads) =>
+        currentLeads.map((lead) =>
+          lead.id === updatedLead.id
+            ? updatedLead
+            : lead
+        )
+      );
+    }
+  }
+
+  if (loading) {
+    return (
+      <AppLayout>
+        <div className="pipeline-loading">
+          <div className="route-loading-spinner" />
+          <p>Loading sales pipeline...</p>
+        </div>
+      </AppLayout>
     );
-
-    setMovingLeadId(null);
-  }
-
-  function handleDragStart(event, leadId) {
-    setDraggedLeadId(leadId);
-
-    event.dataTransfer.effectAllowed = "move";
-    event.dataTransfer.setData("text/plain", leadId);
-  }
-
-  function handleDragEnd() {
-    setDraggedLeadId(null);
-    setDragOverStage("");
-  }
-
-  function handleDragOver(event, stageName) {
-    event.preventDefault();
-
-    event.dataTransfer.dropEffect = "move";
-    setDragOverStage(stageName);
-  }
-
-  async function handleDrop(event, stageName) {
-    event.preventDefault();
-
-    const leadId =
-      event.dataTransfer.getData("text/plain") ||
-      draggedLeadId;
-
-    setDraggedLeadId(null);
-    setDragOverStage("");
-
-    if (!leadId) {
-      return;
-    }
-
-    await moveLead(leadId, stageName);
   }
 
   return (
     <AppLayout>
-      <section className="pipeline-page">
+      <section className="premium-pipeline-page">
         <div className="pipeline-page-header">
           <div>
             <p className="page-eyebrow">
-              Sales workflow
+              Sales management
             </p>
 
             <h1>Pipeline</h1>
 
             <p>
-              Drag leads between stages to update their sales
-              status.
+              Move leads between stages and monitor the
+              progress of every sales opportunity.
             </p>
+          </div>
+
+          <div className="pipeline-header-badge">
+            <Target size={18} />
+
+            <div>
+              <span>Active opportunities</span>
+              <strong>{metrics.activeLeads}</strong>
+            </div>
           </div>
         </div>
 
@@ -263,189 +318,191 @@ function Pipeline() {
 
         <section className="pipeline-summary-grid">
           <article className="pipeline-summary-card">
-            <span>Total leads</span>
-            <strong>{leads.length}</strong>
+            <div className="pipeline-summary-icon blue">
+              <Target size={21} />
+            </div>
+
+            <div>
+              <span>Total leads</span>
+              <strong>{leads.length}</strong>
+              <small>All pipeline opportunities</small>
+            </div>
           </article>
 
           <article className="pipeline-summary-card">
-            <span>Pipeline value</span>
-            <strong>
-              {formatCurrency(totalPipelineValue)}
-            </strong>
+            <div className="pipeline-summary-icon purple">
+              <CircleDollarSign size={21} />
+            </div>
+
+            <div>
+              <span>Pipeline value</span>
+              <strong>
+                {formatCurrency(
+                  metrics.totalPipelineValue
+                )}
+              </strong>
+              <small>Potential sales revenue</small>
+            </div>
           </article>
 
           <article className="pipeline-summary-card">
-            <span>Won value</span>
-            <strong>{formatCurrency(wonValue)}</strong>
+            <div className="pipeline-summary-icon green">
+              <TrendingUp size={21} />
+            </div>
+
+            <div>
+              <span>Won revenue</span>
+              <strong>
+                {formatCurrency(metrics.wonValue)}
+              </strong>
+              <small>Successfully converted</small>
+            </div>
           </article>
 
           <article className="pipeline-summary-card">
-            <span>Win rate</span>
-            <strong>{winRate}%</strong>
+            <div className="pipeline-summary-icon orange">
+              <UserRound size={21} />
+            </div>
+
+            <div>
+              <span>Conversion rate</span>
+              <strong>
+                {metrics.conversionRate}%
+              </strong>
+              <small>Won leads from total</small>
+            </div>
           </article>
         </section>
 
-        <div className="pipeline-toolbar">
-          <div className="pipeline-search">
-            <Search size={18} />
+        <div className="pipeline-help-message">
+          <GripVertical size={16} />
 
-            <input
-              type="search"
-              placeholder="Search by lead, company, email or source..."
-              value={searchTerm}
-              onChange={(event) =>
-                setSearchTerm(event.target.value)
-              }
-            />
-          </div>
+          <span>
+            Drag and drop a lead card into another column
+            to update its status automatically.
+          </span>
         </div>
 
-        {loading ? (
-          <div className="pipeline-loading">
-            <div className="route-loading-spinner" />
-            <p>Loading pipeline...</p>
-          </div>
-        ) : (
-          <section className="kanban-board">
-            {pipelineStages.map((stage) => {
-              const stageLeads = filteredLeads.filter(
-                (lead) => lead.status === stage.name
-              );
+        <section className="pipeline-board">
+          {pipelineStages.map((stage) => {
+            const stageLeads = leads.filter(
+              (lead) => lead.status === stage.name
+            );
 
-              const stageValue = stageLeads.reduce(
-                (total, lead) =>
-                  total + Number(lead.value || 0),
-                0
-              );
+            const stageValue = stageLeads.reduce(
+              (total, lead) =>
+                total + Number(lead.value || 0),
+              0
+            );
 
-              return (
-                <article
-                  className={`kanban-column ${
-                    dragOverStage === stage.name
-                      ? "drag-over"
-                      : ""
-                  }`}
-                  key={stage.name}
-                  onDragOver={(event) =>
-                    handleDragOver(event, stage.name)
-                  }
-                  onDragLeave={() =>
-                    setDragOverStage("")
-                  }
-                  onDrop={(event) =>
-                    handleDrop(event, stage.name)
-                  }
-                >
-                  <div
-                    className={`kanban-stage-line ${stage.className}`}
-                  />
+            return (
+              <article
+                className={`pipeline-column pipeline-column-${stage.name.toLowerCase()}`}
+                key={stage.name}
+                onDragOver={handleDragOver}
+                onDrop={(event) =>
+                  handleDrop(event, stage.name)
+                }
+              >
+                <div className="pipeline-column-header">
+                  <div className="pipeline-column-title">
+                    <span
+                      className={`pipeline-stage-dot ${stage.name.toLowerCase()}`}
+                    />
 
-                  <div className="kanban-column-header">
                     <div>
-                      <div className="kanban-title-row">
-                        <span
-                          className={`kanban-stage-dot ${stage.className}`}
-                        />
+                      <h2>{stage.label}</h2>
+                      <p>{stage.description}</p>
+                    </div>
+                  </div>
 
-                        <h2>{stage.name}</h2>
+                  <span className="pipeline-column-count">
+                    {stageLeads.length}
+                  </span>
+                </div>
+
+                <div className="pipeline-column-value">
+                  <span>Stage value</span>
+                  <strong>
+                    {formatCurrency(stageValue)}
+                  </strong>
+                </div>
+
+                <div className="pipeline-column-cards">
+                  {stageLeads.map((lead) => (
+                    <article
+                      className={`pipeline-lead-card ${
+                        movingLeadId === lead.id
+                          ? "dragging"
+                          : ""
+                      }`}
+                      draggable
+                      key={lead.id}
+                      onDragEnd={handleDragEnd}
+                      onDragStart={(event) =>
+                        handleDragStart(
+                          event,
+                          lead.id
+                        )
+                      }
+                    >
+                      <div className="pipeline-card-top">
+                        <div className="pipeline-card-avatar">
+                          {getInitials(lead.name)}
+                        </div>
+
+                        <GripVertical
+                          className="pipeline-drag-icon"
+                          size={17}
+                        />
                       </div>
 
+                      <div className="pipeline-card-person">
+                        <strong>{lead.name}</strong>
+
+                        <span>{lead.company}</span>
+                      </div>
+
+                      <div className="pipeline-card-details">
+                        <span>
+                          <Mail size={13} />
+                          {lead.email}
+                        </span>
+
+                        <span>
+                          <Building2 size={13} />
+                          {lead.source}
+                        </span>
+                      </div>
+
+                      <div className="pipeline-card-footer">
+                        <strong>
+                          {formatCurrency(lead.value)}
+                        </strong>
+
+                        <span
+                          className={`pipeline-priority ${lead.priority.toLowerCase()}`}
+                        >
+                          {lead.priority}
+                        </span>
+                      </div>
+                    </article>
+                  ))}
+
+                  {stageLeads.length === 0 && (
+                    <div className="pipeline-empty-column">
+                      <Target size={25} />
+                      <strong>No leads</strong>
                       <span>
-                        {stageLeads.length}{" "}
-                        {stageLeads.length === 1
-                          ? "lead"
-                          : "leads"}
+                        Drop an opportunity here.
                       </span>
                     </div>
-
-                    <strong>
-                      {formatCurrency(stageValue)}
-                    </strong>
-                  </div>
-
-                  <div className="kanban-column-body">
-                    {stageLeads.map((lead) => (
-                      <article
-                        className={`deal-card ${
-                          draggedLeadId === lead.id
-                            ? "dragging"
-                            : ""
-                        } ${
-                          movingLeadId === lead.id
-                            ? "saving"
-                            : ""
-                        }`}
-                        key={lead.id}
-                        draggable={movingLeadId !== lead.id}
-                        onDragStart={(event) =>
-                          handleDragStart(event, lead.id)
-                        }
-                        onDragEnd={handleDragEnd}
-                      >
-                        <div className="deal-card-top">
-                          <div className="deal-avatar">
-                            {getInitials(lead.name)}
-                          </div>
-
-                          <GripVertical
-                            className="deal-drag-icon"
-                            size={18}
-                          />
-                        </div>
-
-                        <div className="deal-card-content">
-                          <h3>{lead.name}</h3>
-
-                          <p>
-                            <Building2 size={14} />
-                            {lead.company}
-                          </p>
-                        </div>
-
-                        <div className="deal-value">
-                          <DollarSign size={15} />
-                          {formatCurrency(lead.value)}
-                        </div>
-
-                        <div className="deal-card-meta">
-                          <span
-                            className={`deal-priority ${lead.priority.toLowerCase()}`}
-                          >
-                            {lead.priority}
-                          </span>
-
-                          <span className="deal-owner">
-                            <User size={14} />
-                            {lead.assigned_to ||
-                              "Unassigned"}
-                          </span>
-                        </div>
-
-                        <div className="deal-source-row">
-                          <Target size={13} />
-                          {lead.source}
-                        </div>
-
-                        {movingLeadId === lead.id && (
-                          <div className="deal-saving-message">
-                            Saving status...
-                          </div>
-                        )}
-                      </article>
-                    ))}
-
-                    {stageLeads.length === 0 && (
-                      <div className="kanban-empty">
-                        <Target size={24} />
-                        <p>Drop a lead here</p>
-                      </div>
-                    )}
-                  </div>
-                </article>
-              );
-            })}
-          </section>
-        )}
+                  )}
+                </div>
+              </article>
+            );
+          })}
+        </section>
       </section>
     </AppLayout>
   );

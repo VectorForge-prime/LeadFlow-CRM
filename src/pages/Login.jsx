@@ -1,9 +1,14 @@
 import { useState } from "react";
 import {
+  ArrowRight,
+  CheckCircle2,
   Eye,
   EyeOff,
   LockKeyhole,
   Mail,
+  ShieldCheck,
+  Sparkles,
+  TrendingUp,
 } from "lucide-react";
 import {
   Link,
@@ -68,71 +73,131 @@ function Login() {
   return (
     <main className="auth-page">
       <section className="auth-visual">
-        <div className="auth-brand">
-          <div className="auth-logo">L</div>
+        <div className="auth-background-orb auth-orb-one" />
+        <div className="auth-background-orb auth-orb-two" />
+        <div className="auth-grid-pattern" />
 
-          <div>
+        <div className="auth-brand">
+          <div className="auth-logo">
+            <span>L</span>
+          </div>
+
+          <div className="auth-brand-copy">
             <strong>LeadFlow</strong>
             <span>CRM</span>
           </div>
         </div>
 
         <div className="auth-visual-content">
-          <p className="auth-eyebrow">
-            Business growth platform
-          </p>
+          <div className="auth-product-badge">
+            <Sparkles size={15} />
+            Modern sales workspace
+          </div>
 
           <h1>
-            Turn every lead into a stronger customer
-            relationship.
+            Turn every opportunity into a stronger
+            customer relationship.
           </h1>
 
-          <p>
-            Manage customers, opportunities, tasks and
-            sales performance from one modern workspace.
+          <p className="auth-visual-description">
+            Manage your customers, leads, activities and
+            sales performance from one intelligent and
+            beautifully organized workspace.
           </p>
 
           <div className="auth-feature-list">
-            <span>
-              Customer and lead management
-            </span>
+            <div>
+              <CheckCircle2 size={18} />
+              <span>
+                Track customers and leads in real time
+              </span>
+            </div>
 
-            <span>
-              Sales pipeline tracking
-            </span>
+            <div>
+              <TrendingUp size={18} />
+              <span>
+                Monitor pipeline and business performance
+              </span>
+            </div>
 
-            <span>
-              Tasks, calendar and analytics
-            </span>
+            <div>
+              <ShieldCheck size={18} />
+              <span>
+                Secure authentication and private data
+              </span>
+            </div>
+          </div>
+
+          <div className="auth-preview-card">
+            <div className="auth-preview-header">
+              <div>
+                <span>Monthly revenue</span>
+                <strong>$48,720</strong>
+              </div>
+
+              <span className="auth-preview-growth">
+                +18.4%
+              </span>
+            </div>
+
+            <div className="auth-preview-chart">
+              <span style={{ height: "35%" }} />
+              <span style={{ height: "48%" }} />
+              <span style={{ height: "42%" }} />
+              <span style={{ height: "61%" }} />
+              <span style={{ height: "56%" }} />
+              <span style={{ height: "78%" }} />
+              <span style={{ height: "92%" }} />
+            </div>
+
+            <div className="auth-preview-footer">
+              <div>
+                <span>Active leads</span>
+                <strong>327</strong>
+              </div>
+
+              <div>
+                <span>Conversion</span>
+                <strong>24.8%</strong>
+              </div>
+
+              <div>
+                <span>Customers</span>
+                <strong>1,284</strong>
+              </div>
+            </div>
           </div>
         </div>
 
         <div className="auth-visual-footer">
-          Trusted CRM workspace for growing teams.
+          <span className="auth-status-dot" />
+          Secure CRM workspace for growing teams
         </div>
       </section>
 
       <section className="auth-form-section">
-        <div className="auth-form-wrapper">
-          <div className="auth-mobile-brand">
-            <div className="auth-logo">L</div>
-
-            <div>
-              <strong>LeadFlow</strong>
-              <span>CRM</span>
-            </div>
+        <div className="auth-mobile-brand">
+          <div className="auth-logo">
+            <span>L</span>
           </div>
 
+          <div className="auth-brand-copy">
+            <strong>LeadFlow</strong>
+            <span>CRM</span>
+          </div>
+        </div>
+
+        <div className="auth-form-wrapper">
           <div className="auth-form-header">
             <p className="auth-eyebrow">
               Welcome back
             </p>
 
-            <h2>Sign in to your account</h2>
+            <h2>Sign in to LeadFlow</h2>
 
             <p>
-              Access your customers, leads and sales
-              pipeline.
+              Enter your account details to access your
+              sales workspace.
             </p>
           </div>
 
@@ -150,7 +215,7 @@ function Login() {
               Email address
 
               <div className="auth-input">
-                <Mail size={18} />
+                <Mail size={19} />
 
                 <input
                   required
@@ -165,10 +230,16 @@ function Login() {
             </label>
 
             <label>
-              Password
+              <div className="auth-label-row">
+                <span>Password</span>
+
+                <Link to="/forgot-password">
+                  Forgot password?
+                </Link>
+              </div>
 
               <div className="auth-input">
-                <LockKeyhole size={18} />
+                <LockKeyhole size={19} />
 
                 <input
                   required
@@ -208,34 +279,43 @@ function Login() {
               </div>
             </label>
 
-            <div className="auth-options">
-              <span />
-
-              <Link
-                className="auth-text-button"
-                to="/forgot-password"
-              >
-                Forgot password?
-              </Link>
-            </div>
-
             <button
               className="auth-submit-button"
               type="submit"
               disabled={isSubmitting}
             >
-              {isSubmitting
-                ? "Signing in..."
-                : "Sign in"}
+              <span>
+                {isSubmitting
+                  ? "Signing in..."
+                  : "Sign in"}
+              </span>
+
+              {!isSubmitting && (
+                <ArrowRight size={18} />
+              )}
             </button>
           </form>
 
+          <div className="auth-security-note">
+            <ShieldCheck size={17} />
+
+            <span>
+              Your account is protected by secure
+              Supabase authentication.
+            </span>
+          </div>
+
           <p className="auth-switch">
-            Don&apos;t have an account?{" "}
+            Don&apos;t have an account?
+
             <Link to="/register">
-              Create account
+              Create your workspace
             </Link>
           </p>
+        </div>
+
+        <div className="auth-form-footer">
+          © {new Date().getFullYear()} LeadFlow CRM
         </div>
       </section>
     </main>

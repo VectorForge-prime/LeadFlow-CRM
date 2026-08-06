@@ -1,840 +1,1105 @@
 import { useEffect, useMemo, useState } from "react";
 import {
+  BriefcaseBusiness,
   CalendarDays,
-  DollarSign,
-  Edit3,
-  Filter,
+  ChevronDown,
+  CircleDollarSign,
   Mail,
+  MapPin,
   MoreHorizontal,
+  Phone,
   Plus,
   Search,
-  Target,
   Trash2,
-  TrendingUp,
-  User,
   UserPlus,
+  Users,
   X,
 } from "lucide-react";
 
-import AppLayout from "../components/layout/AppLayout";
-import { useAuth } from "../context/AuthContext";
+import { supabase } from "../services/supabase";
 
 import {
   createLead,
   deleteLead,
   getLeads,
-  updateLead,
 } from "../services/leadsService";
 
-const emptyForm = {
+import "../styles/Leads.css";
+
+const initialFormData = {
   name: "",
+  company: "",
   email: "",
   phone: "",
-  company: "",
+
+  dealTitle: "",
+  jobTitle: "",
+  website: "",
+  linkedin: "",
+  city: "",
+  country: "",
+
   source: "Website",
   status: "New",
   priority: "Medium",
+
   value: "",
-  assignedTo: "",
+  currency: "EUR",
+  probability: "20",
+
+  expectedCloseDate: "",
+  nextFollowUp: "",
+
+  assignedTo: "Cipicao Cao",
+  tags: "",
+  notes: "",
 };
 
-function formatCurrency(value) {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-    maximumFractionDigits: 0,
-  }).format(Number(value) || 0);
-}
+const statusOptions = [
+  "New",
+  "Contacted",
+  "Qualified",
+  "Proposal",
+  "Won",
+  "Lost",
+];
 
-function formatDate(value) {
-  if (!value) {
-    return "Unknown date";
-  }
+const sourceOptions = [
+  "Website",
+  "Google Ads",
+  "LinkedIn",
+  "Referral",
+  "Cold Email",
+  "Social Media",
+];
 
-  return new Intl.DateTimeFormat("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  }).format(new Date(value));
-}
-
-function getInitials(name) {
-  if (!name?.trim()) {
-    return "LF";
-  }
-
-  return name
-    .trim()
-    .split(/\s+/)
-    .map((word) => word[0])
-    .slice(0, 2)
-    .join("")
-    .toUpperCase();
-}
-
-function getStatusClass(status) {
-  return status.toLowerCase().replaceAll(" ", "-");
-}
+const priorityOptions = ["High", "Medium", "Low"];
 
 function Leads() {
-  const { user } = useAuth();
-
+  const [userId, setUserId] = useState(null);
   const [leads, setLeads] = useState([]);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState("All");
-  const [priorityFilter, setPriorityFilter] = useState("All");
+
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingLeadId, setEditingLeadId] = useState(null);
-  const [formData, setFormData] = useState(emptyForm);
+  const [openedMenuId, setOpenedMenuId] = useState(null);
 
-  const [loading, setLoading] = useState(true);
-  const [isSaving, setIsSaving] = useState(false);
-  const [errorMessage, setErrorMessage] = useState("");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState("All");
 
-  const defaultOwner =
-    user?.user_metadata?.full_name ||
-    user?.email?.split("@")[0] ||
-    "LeadFlow User";
+  const [pageError, setPageError] = useState("");
+  const [formError, setFormError] = useState("");
+
+  const [formData, setFormData] = useState(initialFormData);
 
   useEffect(() => {
-    if (!user?.id) {
-      return undefined;
+    loadAuthenticatedUser();
+  }, []);
+
+  useEffect(() => {
+    function closeMenus() {
+      setOpenedMenuId(null);
     }
 
-    let isMounted = true;
-
-    async function loadLeads() {
-      setLoading(true);
-      setErrorMessage("");
-
-      const { data, error } = await getLeads(user.id);
-
-      if (!isMounted) {
-        return;
-      }
-
-      if (error) {
-        setLeads([]);
-        setErrorMessage(error.message);
-      } else {
-        setLeads(data ?? []);
-      }
-
-      setLoading(false);
-    }
-
-    loadLeads();
+    window.addEventListener("click", closeMenus);
 
     return () => {
-      isMounted = false;
+      window.removeEventListener("click", closeMenus);
     };
-  }, [user?.id]);
+  }, []);
 
-  const filteredLeads = useMemo(() => {
-    const normalizedSearch = searchTerm.trim().toLowerCase();
+  async function loadAuthenticatedUser() {
+    setIsLoading(true);
+    setPageError("");
 
-    return leads.filter((lead) => {
-      const matchesSearch =
-        lead.name.toLowerCase().includes(normalizedSearch) ||
-        lead.company.toLowerCase().includes(normalizedSearch) ||
-        lead.email.toLowerCase().includes(normalizedSearch) ||
-        lead.source.toLowerCase().includes(normalizedSearch);
+    const {
+      data: { user },
+      error,
+    } = await supabase.auth.getUser();
 
-      const matchesStatus =
-        statusFilter === "All" || lead.status === statusFilter;
-
-      const matchesPriority =
-        priorityFilter === "All" ||
-        lead.priority === priorityFilter;
-
-      return (
-        matchesSearch &&
-        matchesStatus &&
-        matchesPriority
+    if (error || !user) {
+      setPageError(
+        error?.message || "You must be logged in to access your leads."
       );
-    });
-  }, [
-    leads,
-    searchTerm,
-    statusFilter,
-    priorityFilter,
-  ]);
+      setIsLoading(false);
+      return;
+    }
 
-  const potentialRevenue = leads.reduce(
-    (total, lead) => total + Number(lead.value || 0),
-    0
-  );
-
-  const qualifiedLeads = leads.filter((lead) =>
-    ["Qualified", "Proposal", "Won"].includes(lead.status)
-  ).length;
-
-  const wonLeads = leads.filter(
-    (lead) => lead.status === "Won"
-  ).length;
-
-  const conversionRate =
-    leads.length === 0
-      ? 0
-      : Math.round((wonLeads / leads.length) * 100);
-
-  function handleInputChange(event) {
-    const { name, value } = event.target;
-
-    setFormData((currentForm) => ({
-      ...currentForm,
-      [name]: value,
-    }));
+    setUserId(user.id);
+    await loadLeads(user.id);
   }
 
-  function openAddModal() {
-    setEditingLeadId(null);
+  async function loadLeads(authenticatedUserId = userId) {
+    if (!authenticatedUserId) {
+      return;
+    }
 
-    setFormData({
-      ...emptyForm,
-      assignedTo: defaultOwner,
-    });
+    setIsLoading(true);
+    setPageError("");
 
-    setErrorMessage("");
-    setIsModalOpen(true);
+    const { data, error } = await getLeads(authenticatedUserId);
+
+    if (error) {
+      console.error("Load leads error:", error);
+      setPageError(error.message || "The leads could not be loaded.");
+      setIsLoading(false);
+      return;
+    }
+
+    setLeads(data);
+    setIsLoading(false);
   }
 
-  function openEditModal(lead) {
-    setEditingLeadId(lead.id);
-
-    setFormData({
-      name: lead.name,
-      email: lead.email,
-      phone: lead.phone ?? "",
-      company: lead.company,
-      source: lead.source,
-      status: lead.status,
-      priority: lead.priority,
-      value: lead.value ?? "",
-      assignedTo: lead.assigned_to ?? defaultOwner,
-    });
-
-    setErrorMessage("");
+  function openModal() {
+    setFormData(initialFormData);
+    setFormError("");
     setIsModalOpen(true);
   }
 
   function closeModal() {
-    if (isSaving) {
+    if (isSubmitting) {
       return;
     }
 
-    setEditingLeadId(null);
-    setFormData(emptyForm);
-    setErrorMessage("");
     setIsModalOpen(false);
+    setFormError("");
+    setFormData(initialFormData);
+  }
+
+  function handleOverlayMouseDown(event) {
+    if (event.target === event.currentTarget) {
+      closeModal();
+    }
+  }
+
+  function handleChange(event) {
+    const { name, value } = event.target;
+
+    setFormData((currentData) => ({
+      ...currentData,
+      [name]: value,
+    }));
+
+    if (formError) {
+      setFormError("");
+    }
+  }
+
+  function validateForm() {
+    if (!formData.name.trim()) {
+      return "Full name is required.";
+    }
+
+    if (!formData.company.trim()) {
+      return "Company is required.";
+    }
+
+    if (!formData.email.trim()) {
+      return "Email address is required.";
+    }
+
+    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    if (!emailPattern.test(formData.email.trim())) {
+      return "Enter a valid email address.";
+    }
+
+    if (Number(formData.value) < 0) {
+      return "Estimated value cannot be negative.";
+    }
+
+    const probability = Number(formData.probability);
+
+    if (
+      Number.isNaN(probability) ||
+      probability < 0 ||
+      probability > 100
+    ) {
+      return "Probability must be between 0 and 100.";
+    }
+
+    return "";
   }
 
   async function handleSubmit(event) {
     event.preventDefault();
 
-    if (!user?.id) {
-      setErrorMessage("The authenticated user is missing.");
+    const validationError = validateForm();
+
+    if (validationError) {
+      setFormError(validationError);
       return;
     }
 
-    setIsSaving(true);
-    setErrorMessage("");
-
-    const leadPayload = {
-      name: formData.name.trim(),
-      email: formData.email.trim(),
-      phone: formData.phone.trim(),
-      company: formData.company.trim(),
-      source: formData.source,
-      status: formData.status,
-      priority: formData.priority,
-      value: Number(formData.value) || 0,
-      assignedTo:
-        formData.assignedTo.trim() || defaultOwner,
-    };
-
-    if (editingLeadId) {
-      const { data, error } = await updateLead(
-        editingLeadId,
-        leadPayload
-      );
-
-      if (error) {
-        setErrorMessage(error.message);
-        setIsSaving(false);
-        return;
-      }
-
-      setLeads((currentLeads) =>
-        currentLeads.map((lead) =>
-          lead.id === editingLeadId ? data : lead
-        )
-      );
-    } else {
-      const { data, error } = await createLead(
-        user.id,
-        leadPayload
-      );
-
-      if (error) {
-        setErrorMessage(error.message);
-        setIsSaving(false);
-        return;
-      }
-
-      setLeads((currentLeads) => [
-        data,
-        ...currentLeads,
-      ]);
+    if (!userId) {
+      setFormError("The authenticated user is missing.");
+      return;
     }
 
-    setIsSaving(false);
-    setEditingLeadId(null);
-    setFormData(emptyForm);
+    setIsSubmitting(true);
+    setFormError("");
+
+    const { data, error } = await createLead(userId, formData);
+
+    if (error) {
+      console.error("Create lead error:", error);
+      setFormError(error.message || "The lead could not be created.");
+      setIsSubmitting(false);
+      return;
+    }
+
+    setLeads((currentLeads) => [data, ...currentLeads]);
+
+    setFormData(initialFormData);
+    setIsSubmitting(false);
     setIsModalOpen(false);
   }
 
-  async function handleDelete(leadId, leadName) {
-    const shouldDelete = window.confirm(
-      `Delete ${leadName} from your leads?`
+  async function handleDeleteLead(leadId) {
+    const confirmed = window.confirm(
+      "Are you sure you want to delete this lead?"
     );
 
-    if (!shouldDelete) {
+    if (!confirmed) {
       return;
     }
-
-    setErrorMessage("");
 
     const { error } = await deleteLead(leadId);
 
     if (error) {
-      setErrorMessage(error.message);
+      console.error("Delete lead error:", error);
+      setPageError(error.message || "The lead could not be deleted.");
       return;
     }
 
     setLeads((currentLeads) =>
       currentLeads.filter((lead) => lead.id !== leadId)
     );
+
+    setOpenedMenuId(null);
   }
 
+  function toggleMenu(event, leadId) {
+    event.stopPropagation();
+
+    setOpenedMenuId((currentId) =>
+      currentId === leadId ? null : leadId
+    );
+  }
+
+  const filteredLeads = useMemo(() => {
+    const normalizedSearch = searchTerm.trim().toLowerCase();
+
+    return leads.filter((lead) => {
+      const matchesSearch =
+        !normalizedSearch ||
+        lead.name?.toLowerCase().includes(normalizedSearch) ||
+        lead.company?.toLowerCase().includes(normalizedSearch) ||
+        lead.email?.toLowerCase().includes(normalizedSearch) ||
+        lead.deal_title?.toLowerCase().includes(normalizedSearch);
+
+      const matchesStatus =
+        statusFilter === "All" || lead.status === statusFilter;
+
+      return matchesSearch && matchesStatus;
+    });
+  }, [leads, searchTerm, statusFilter]);
+
+  const statistics = useMemo(() => {
+    const totalValue = leads.reduce(
+      (sum, lead) => sum + Number(lead.value || 0),
+      0
+    );
+
+    const qualifiedLeads = leads.filter(
+      (lead) =>
+        lead.status === "Qualified" ||
+        lead.status === "Proposal" ||
+        lead.status === "Won"
+    ).length;
+
+    const wonLeads = leads.filter(
+      (lead) => lead.status === "Won"
+    ).length;
+
+    return {
+      totalLeads: leads.length,
+      qualifiedLeads,
+      wonLeads,
+      totalValue,
+    };
+  }, [leads]);
+
   return (
-    <AppLayout>
-      <section className="leads-page">
-        <div className="leads-header">
-          <div>
-            <p className="page-eyebrow">
-              Lead management
-            </p>
-
-            <h1>Leads</h1>
-
-            <p>
-              Track opportunities, priorities and potential
-              revenue.
-            </p>
-          </div>
-
-          <button
-            className="primary-button leads-add-button"
-            type="button"
-            onClick={openAddModal}
-          >
-            <Plus size={18} />
-            Add lead
-          </button>
+    <main className="leads-page">
+      <div className="leads-page-heading">
+        <div>
+          <p className="leads-page-eyebrow">SALES MANAGEMENT</p>
+          <h1>Leads</h1>
+          <p className="leads-page-description">
+            Manage prospects, opportunities and follow-up activities.
+          </p>
         </div>
 
-        {errorMessage && !isModalOpen && (
-          <div className="leads-error-message">
-            {errorMessage}
-          </div>
-        )}
+        <button
+          type="button"
+          className="leads-add-button"
+          onClick={openModal}
+        >
+          <Plus size={19} />
+          Add lead
+        </button>
+      </div>
 
-        <section className="leads-summary-grid">
-          <article className="leads-summary-card">
-            <div className="leads-summary-icon">
-              <UserPlus size={21} />
-            </div>
+      {pageError && (
+        <div className="leads-page-error">
+          <span>{pageError}</span>
 
-            <div>
-              <span>Total leads</span>
-              <strong>{leads.length}</strong>
-            </div>
-          </article>
+          <button
+            type="button"
+            onClick={() => loadLeads()}
+          >
+            Try again
+          </button>
+        </div>
+      )}
 
-          <article className="leads-summary-card">
-            <div className="leads-summary-icon purple">
-              <Target size={21} />
-            </div>
-
-            <div>
-              <span>Qualified leads</span>
-              <strong>{qualifiedLeads}</strong>
-            </div>
-          </article>
-
-          <article className="leads-summary-card">
-            <div className="leads-summary-icon orange">
-              <DollarSign size={21} />
-            </div>
-
-            <div>
-              <span>Potential revenue</span>
-              <strong>
-                {formatCurrency(potentialRevenue)}
-              </strong>
-            </div>
-          </article>
-
-          <article className="leads-summary-card">
-            <div className="leads-summary-icon green">
-              <TrendingUp size={21} />
-            </div>
-
-            <div>
-              <span>Conversion rate</span>
-              <strong>{conversionRate}%</strong>
-            </div>
-          </article>
-        </section>
-
-        <article className="leads-table-card">
-          <div className="leads-toolbar">
-            <div className="leads-search">
-              <Search size={18} />
-
-              <input
-                type="search"
-                placeholder="Search by lead, company, email or source..."
-                value={searchTerm}
-                onChange={(event) =>
-                  setSearchTerm(event.target.value)
-                }
-              />
-            </div>
-
-            <div className="leads-filters">
-              <div className="lead-filter">
-                <Filter size={16} />
-
-                <select
-                  value={statusFilter}
-                  onChange={(event) =>
-                    setStatusFilter(event.target.value)
-                  }
-                >
-                  <option value="All">
-                    All statuses
-                  </option>
-                  <option value="New">New</option>
-                  <option value="Contacted">
-                    Contacted
-                  </option>
-                  <option value="Qualified">
-                    Qualified
-                  </option>
-                  <option value="Proposal">
-                    Proposal
-                  </option>
-                  <option value="Won">Won</option>
-                  <option value="Lost">Lost</option>
-                </select>
-              </div>
-
-              <div className="lead-filter">
-                <Target size={16} />
-
-                <select
-                  value={priorityFilter}
-                  onChange={(event) =>
-                    setPriorityFilter(event.target.value)
-                  }
-                >
-                  <option value="All">
-                    All priorities
-                  </option>
-                  <option value="High">High</option>
-                  <option value="Medium">
-                    Medium
-                  </option>
-                  <option value="Low">Low</option>
-                </select>
-              </div>
-            </div>
+      <section className="leads-statistics">
+        <article className="lead-stat-card">
+          <div className="lead-stat-icon">
+            <Users size={21} />
           </div>
 
-          <div className="leads-table-wrapper">
-            {loading ? (
-              <div className="leads-loading">
-                <div className="route-loading-spinner" />
-                <p>Loading leads...</p>
-              </div>
-            ) : (
-              <>
-                <table className="leads-table">
-                  <thead>
-                    <tr>
-                      <th>Lead</th>
-                      <th>Source</th>
-                      <th>Status</th>
-                      <th>Priority</th>
-                      <th>Value</th>
-                      <th>Assigned</th>
-                      <th>Created</th>
-                      <th aria-label="Actions" />
-                    </tr>
-                  </thead>
+          <div>
+            <p>Total leads</p>
+            <strong>{statistics.totalLeads}</strong>
+            <span>All opportunities</span>
+          </div>
+        </article>
 
-                  <tbody>
-                    {filteredLeads.map((lead) => (
-                      <tr key={lead.id}>
-                        <td>
-                          <div className="lead-identity">
-                            <div className="lead-avatar">
-                              {getInitials(lead.name)}
-                            </div>
-
-                            <div>
-                              <strong>{lead.name}</strong>
-                              <span>{lead.company}</span>
-
-                              <div className="lead-contact-inline">
-                                <Mail size={12} />
-                                {lead.email}
-                              </div>
-                            </div>
-                          </div>
-                        </td>
-
-                        <td>
-                          <span className="lead-source">
-                            {lead.source}
-                          </span>
-                        </td>
-
-                        <td>
-                          <span
-                            className={`lead-status ${getStatusClass(
-                              lead.status
-                            )}`}
-                          >
-                            {lead.status}
-                          </span>
-                        </td>
-
-                        <td>
-                          <span
-                            className={`lead-priority ${lead.priority.toLowerCase()}`}
-                          >
-                            {lead.priority}
-                          </span>
-                        </td>
-
-                        <td className="lead-value">
-                          {formatCurrency(lead.value)}
-                        </td>
-
-                        <td>
-                          <div className="lead-owner">
-                            <User size={15} />
-                            {lead.assigned_to ||
-                              "Unassigned"}
-                          </div>
-                        </td>
-
-                        <td>
-                          <div className="lead-date">
-                            <CalendarDays size={14} />
-                            {formatDate(lead.created_at)}
-                          </div>
-                        </td>
-
-                        <td>
-                          <div className="lead-actions">
-                            <button
-                              type="button"
-                              aria-label={`Edit ${lead.name}`}
-                              onClick={() =>
-                                openEditModal(lead)
-                              }
-                            >
-                              <Edit3 size={16} />
-                            </button>
-
-                            <button
-                              type="button"
-                              aria-label={`Delete ${lead.name}`}
-                              onClick={() =>
-                                handleDelete(
-                                  lead.id,
-                                  lead.name
-                                )
-                              }
-                            >
-                              <Trash2 size={16} />
-                            </button>
-
-                            <button
-                              type="button"
-                              aria-label={`More actions for ${lead.name}`}
-                            >
-                              <MoreHorizontal size={18} />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-
-                {filteredLeads.length === 0 && (
-                  <div className="leads-empty">
-                    <Target size={36} />
-                    <h3>No leads found</h3>
-
-                    <p>
-                      Add your first lead or change the
-                      filters.
-                    </p>
-                  </div>
-                )}
-              </>
-            )}
+        <article className="lead-stat-card">
+          <div className="lead-stat-icon">
+            <BriefcaseBusiness size={21} />
           </div>
 
-          <div className="leads-table-footer">
-            Showing {filteredLeads.length} of{" "}
-            {leads.length} leads
+          <div>
+            <p>Qualified</p>
+            <strong>{statistics.qualifiedLeads}</strong>
+            <span>Sales-ready leads</span>
+          </div>
+        </article>
+
+        <article className="lead-stat-card">
+          <div className="lead-stat-icon">
+            <CircleDollarSign size={21} />
+          </div>
+
+          <div>
+            <p>Pipeline value</p>
+            <strong>
+              {formatMoney(statistics.totalValue, "EUR")}
+            </strong>
+            <span>Combined estimated value</span>
+          </div>
+        </article>
+
+        <article className="lead-stat-card">
+          <div className="lead-stat-icon">
+            <UserPlus size={21} />
+          </div>
+
+          <div>
+            <p>Won leads</p>
+            <strong>{statistics.wonLeads}</strong>
+            <span>Successfully converted</span>
           </div>
         </article>
       </section>
 
+      <section className="leads-content-card">
+        <div className="leads-toolbar">
+          <div className="leads-search">
+            <Search size={19} />
+
+            <input
+              type="search"
+              placeholder="Search by name, company, email or deal..."
+              value={searchTerm}
+              onChange={(event) => setSearchTerm(event.target.value)}
+            />
+          </div>
+
+          <div className="leads-status-filter">
+            <select
+              value={statusFilter}
+              onChange={(event) => setStatusFilter(event.target.value)}
+            >
+              <option value="All">All statuses</option>
+
+              {statusOptions.map((status) => (
+                <option
+                  key={status}
+                  value={status}
+                >
+                  {status}
+                </option>
+              ))}
+            </select>
+
+            <ChevronDown size={17} />
+          </div>
+        </div>
+
+        {isLoading ? (
+          <div className="leads-loading">
+            <div className="leads-loader" />
+            <p>Loading leads...</p>
+          </div>
+        ) : filteredLeads.length === 0 ? (
+          <div className="leads-empty-state">
+            <div className="leads-empty-icon">
+              <Users size={31} />
+            </div>
+
+            <h2>
+              {leads.length === 0
+                ? "No leads yet"
+                : "No leads found"}
+            </h2>
+
+            <p>
+              {leads.length === 0
+                ? "Create your first lead and start building your sales pipeline."
+                : "Try changing the search text or selected status."}
+            </p>
+
+            {leads.length === 0 && (
+              <button
+                type="button"
+                onClick={openModal}
+              >
+                <Plus size={18} />
+                Create first lead
+              </button>
+            )}
+          </div>
+        ) : (
+          <div className="leads-table-wrapper">
+            <table className="leads-table">
+              <thead>
+                <tr>
+                  <th>Lead</th>
+                  <th>Deal</th>
+                  <th>Status</th>
+                  <th>Priority</th>
+                  <th>Value</th>
+                  <th>Follow-up</th>
+                  <th>Assigned to</th>
+                  <th aria-label="Actions" />
+                </tr>
+              </thead>
+
+              <tbody>
+                {filteredLeads.map((lead) => (
+                  <tr key={lead.id}>
+                    <td>
+                      <div className="lead-person-cell">
+                        <div className="lead-avatar">
+                          {getInitials(lead.name)}
+                        </div>
+
+                        <div>
+                          <strong>{lead.name}</strong>
+                          <span>{lead.company}</span>
+
+                          <div className="lead-contact-details">
+                            {lead.email && (
+                              <span>
+                                <Mail size={12} />
+                                {lead.email}
+                              </span>
+                            )}
+
+                            {lead.phone && (
+                              <span>
+                                <Phone size={12} />
+                                {lead.phone}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </td>
+
+                    <td>
+                      <div className="lead-deal-cell">
+                        <strong>
+                          {lead.deal_title || "Untitled opportunity"}
+                        </strong>
+
+                        <span>{lead.source}</span>
+
+                        {(lead.city || lead.country) && (
+                          <small>
+                            <MapPin size={12} />
+                            {[lead.city, lead.country]
+                              .filter(Boolean)
+                              .join(", ")}
+                          </small>
+                        )}
+                      </div>
+                    </td>
+
+                    <td>
+                      <span
+                        className={`lead-status lead-status-${normalizeClassName(
+                          lead.status
+                        )}`}
+                      >
+                        {lead.status}
+                      </span>
+                    </td>
+
+                    <td>
+                      <span
+                        className={`lead-priority lead-priority-${normalizeClassName(
+                          lead.priority
+                        )}`}
+                      >
+                        <span />
+                        {lead.priority}
+                      </span>
+                    </td>
+
+                    <td>
+                      <div className="lead-value-cell">
+                        <strong>
+                          {formatMoney(
+                            lead.value,
+                            lead.currency || "EUR"
+                          )}
+                        </strong>
+
+                        <span>
+                          {Number(lead.probability || 0)}% probability
+                        </span>
+                      </div>
+                    </td>
+
+                    <td>
+                      <div className="lead-date-cell">
+                        <CalendarDays size={15} />
+
+                        <span>
+                          {lead.next_follow_up
+                            ? formatDate(lead.next_follow_up, true)
+                            : lead.expected_close_date
+                              ? formatDate(
+                                  lead.expected_close_date,
+                                  false
+                                )
+                              : "Not scheduled"}
+                        </span>
+                      </div>
+                    </td>
+
+                    <td>
+                      <span className="lead-assigned">
+                        {lead.assigned_to || "Unassigned"}
+                      </span>
+                    </td>
+
+                    <td>
+                      <div className="lead-actions">
+                        <button
+                          type="button"
+                          className="lead-actions-button"
+                          aria-label={`Actions for ${lead.name}`}
+                          onClick={(event) =>
+                            toggleMenu(event, lead.id)
+                          }
+                        >
+                          <MoreHorizontal size={20} />
+                        </button>
+
+                        {openedMenuId === lead.id && (
+                          <div
+                            className="lead-actions-menu"
+                            onClick={(event) =>
+                              event.stopPropagation()
+                            }
+                          >
+                            <button
+                              type="button"
+                              className="lead-delete-option"
+                              onClick={() =>
+                                handleDeleteLead(lead.id)
+                              }
+                            >
+                              <Trash2 size={16} />
+                              Delete lead
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
       {isModalOpen && (
         <div
-          className="lead-modal-backdrop"
-          role="presentation"
-          onMouseDown={closeModal}
+          className="lead-modal-overlay"
+          onMouseDown={handleOverlayMouseDown}
         >
           <div
             className="lead-modal"
             role="dialog"
             aria-modal="true"
-            aria-labelledby="lead-modal-title"
-            onMouseDown={(event) =>
-              event.stopPropagation()
-            }
+            aria-labelledby="add-lead-title"
           >
-            <div className="lead-modal-header">
+            <header className="lead-modal-header">
               <div>
-                <p className="page-eyebrow">
-                  {editingLeadId
-                    ? "Update record"
-                    : "New opportunity"}
+                <p className="lead-modal-eyebrow">
+                  NEW OPPORTUNITY
                 </p>
 
-                <h2 id="lead-modal-title">
-                  {editingLeadId
-                    ? "Edit lead"
-                    : "Add lead"}
-                </h2>
+                <h2 id="add-lead-title">Add lead</h2>
+
+                <p className="lead-modal-description">
+                  Add contact information and configure the sales
+                  opportunity.
+                </p>
               </div>
 
               <button
-                className="modal-close-button"
                 type="button"
-                aria-label="Close"
-                disabled={isSaving}
+                className="lead-modal-close"
                 onClick={closeModal}
+                aria-label="Close modal"
+                disabled={isSubmitting}
               >
-                <X size={20} />
+                <X size={26} />
               </button>
-            </div>
-
-            {errorMessage && (
-              <div className="lead-modal-error">
-                {errorMessage}
-              </div>
-            )}
+            </header>
 
             <form
               className="lead-form"
               onSubmit={handleSubmit}
             >
-              <div className="lead-form-grid">
-                <label>
-                  Full name
+              {formError && (
+                <div className="lead-form-error">
+                  {formError}
+                </div>
+              )}
 
-                  <input
+              <section className="lead-form-section">
+                <div className="lead-section-heading">
+                  <UserPlus size={21} />
+
+                  <div>
+                    <h3>Contact information</h3>
+                    <p>
+                      Basic information about the potential customer.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="lead-form-grid">
+                  <FormField
+                    label="Full name"
                     required
-                    name="name"
-                    type="text"
-                    placeholder="Example: Daniel Carter"
-                    value={formData.name}
-                    onChange={handleInputChange}
-                  />
-                </label>
+                  >
+                    <input
+                      name="name"
+                      type="text"
+                      placeholder="Example: Daniel Carter"
+                      value={formData.name}
+                      onChange={handleChange}
+                    />
+                  </FormField>
 
-                <label>
-                  Company
-
-                  <input
+                  <FormField
+                    label="Company"
                     required
-                    name="company"
-                    type="text"
-                    placeholder="Example: PixelCraft"
-                    value={formData.company}
-                    onChange={handleInputChange}
-                  />
-                </label>
+                  >
+                    <input
+                      name="company"
+                      type="text"
+                      placeholder="Example: PixelCraft"
+                      value={formData.company}
+                      onChange={handleChange}
+                    />
+                  </FormField>
 
-                <label>
-                  Email address
-
-                  <input
+                  <FormField
+                    label="Email address"
                     required
-                    name="email"
-                    type="email"
-                    placeholder="daniel@company.com"
-                    value={formData.email}
-                    onChange={handleInputChange}
-                  />
-                </label>
-
-                <label>
-                  Phone
-
-                  <input
-                    name="phone"
-                    type="tel"
-                    placeholder="+1 202 555 0100"
-                    value={formData.phone}
-                    onChange={handleInputChange}
-                  />
-                </label>
-
-                <label>
-                  Source
-
-                  <select
-                    name="source"
-                    value={formData.source}
-                    onChange={handleInputChange}
                   >
-                    <option value="Website">
-                      Website
-                    </option>
-                    <option value="Google Ads">
-                      Google Ads
-                    </option>
-                    <option value="LinkedIn">
-                      LinkedIn
-                    </option>
-                    <option value="Referral">
-                      Referral
-                    </option>
-                    <option value="Cold Email">
-                      Cold Email
-                    </option>
-                    <option value="Social Media">
-                      Social Media
-                    </option>
-                  </select>
-                </label>
+                    <input
+                      name="email"
+                      type="email"
+                      placeholder="daniel@company.com"
+                      value={formData.email}
+                      onChange={handleChange}
+                    />
+                  </FormField>
 
-                <label>
-                  Status
+                  <FormField label="Phone">
+                    <input
+                      name="phone"
+                      type="tel"
+                      placeholder="+40 712 345 678"
+                      value={formData.phone}
+                      onChange={handleChange}
+                    />
+                  </FormField>
 
-                  <select
-                    name="status"
-                    value={formData.status}
-                    onChange={handleInputChange}
+                  <FormField label="Job title">
+                    <input
+                      name="jobTitle"
+                      type="text"
+                      placeholder="Example: Marketing Manager"
+                      value={formData.jobTitle}
+                      onChange={handleChange}
+                    />
+                  </FormField>
+
+                  <FormField label="Website">
+                    <input
+                      name="website"
+                      type="url"
+                      placeholder="https://company.com"
+                      value={formData.website}
+                      onChange={handleChange}
+                    />
+                  </FormField>
+
+                  <FormField label="LinkedIn profile">
+                    <input
+                      name="linkedin"
+                      type="url"
+                      placeholder="https://linkedin.com/in/..."
+                      value={formData.linkedin}
+                      onChange={handleChange}
+                    />
+                  </FormField>
+
+                  <FormField label="City">
+                    <input
+                      name="city"
+                      type="text"
+                      placeholder="Bucharest"
+                      value={formData.city}
+                      onChange={handleChange}
+                    />
+                  </FormField>
+
+                  <FormField label="Country">
+                    <input
+                      name="country"
+                      type="text"
+                      placeholder="Romania"
+                      value={formData.country}
+                      onChange={handleChange}
+                    />
+                  </FormField>
+                </div>
+              </section>
+
+              <section className="lead-form-section">
+                <div className="lead-section-heading">
+                  <BriefcaseBusiness size={21} />
+
+                  <div>
+                    <h3>Sales information</h3>
+                    <p>
+                      Configure the opportunity, value and follow-up.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="lead-form-grid">
+                  <FormField
+                    label="Deal title"
+                    fullWidth
                   >
-                    <option value="New">New</option>
-                    <option value="Contacted">
-                      Contacted
-                    </option>
-                    <option value="Qualified">
-                      Qualified
-                    </option>
-                    <option value="Proposal">
-                      Proposal
-                    </option>
-                    <option value="Won">Won</option>
-                    <option value="Lost">Lost</option>
-                  </select>
-                </label>
+                    <input
+                      name="dealTitle"
+                      type="text"
+                      placeholder="Example: Company website redesign"
+                      value={formData.dealTitle}
+                      onChange={handleChange}
+                    />
+                  </FormField>
 
-                <label>
-                  Priority
+                  <FormField label="Source">
+                    <select
+                      name="source"
+                      value={formData.source}
+                      onChange={handleChange}
+                    >
+                      {sourceOptions.map((source) => (
+                        <option
+                          key={source}
+                          value={source}
+                        >
+                          {source}
+                        </option>
+                      ))}
+                    </select>
+                  </FormField>
 
-                  <select
-                    name="priority"
-                    value={formData.priority}
-                    onChange={handleInputChange}
+                  <FormField label="Status">
+                    <select
+                      name="status"
+                      value={formData.status}
+                      onChange={handleChange}
+                    >
+                      {statusOptions.map((status) => (
+                        <option
+                          key={status}
+                          value={status}
+                        >
+                          {status}
+                        </option>
+                      ))}
+                    </select>
+                  </FormField>
+
+                  <FormField label="Priority">
+                    <select
+                      name="priority"
+                      value={formData.priority}
+                      onChange={handleChange}
+                    >
+                      {priorityOptions.map((priority) => (
+                        <option
+                          key={priority}
+                          value={priority}
+                        >
+                          {priority}
+                        </option>
+                      ))}
+                    </select>
+                  </FormField>
+
+                  <FormField label="Probability to close">
+                    <div className="lead-percentage-input">
+                      <input
+                        name="probability"
+                        type="number"
+                        min="0"
+                        max="100"
+                        value={formData.probability}
+                        onChange={handleChange}
+                      />
+
+                      <span>%</span>
+                    </div>
+                  </FormField>
+
+                  <FormField label="Estimated value">
+                    <div className="lead-money-input">
+                      <select
+                        name="currency"
+                        value={formData.currency}
+                        onChange={handleChange}
+                        aria-label="Currency"
+                      >
+                        <option value="RON">RON</option>
+                        <option value="EUR">EUR</option>
+                        <option value="USD">USD</option>
+                        <option value="GBP">GBP</option>
+                      </select>
+
+                      <input
+                        name="value"
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        placeholder="15000"
+                        value={formData.value}
+                        onChange={handleChange}
+                      />
+                    </div>
+                  </FormField>
+
+                  <FormField label="Expected close date">
+                    <input
+                      name="expectedCloseDate"
+                      type="date"
+                      value={formData.expectedCloseDate}
+                      onChange={handleChange}
+                    />
+                  </FormField>
+
+                  <FormField label="Next follow-up">
+                    <input
+                      name="nextFollowUp"
+                      type="datetime-local"
+                      value={formData.nextFollowUp}
+                      onChange={handleChange}
+                    />
+                  </FormField>
+
+                  <FormField label="Assigned to">
+                    <select
+                      name="assignedTo"
+                      value={formData.assignedTo}
+                      onChange={handleChange}
+                    >
+                      <option value="Cipicao Cao">
+                        Cipicao Cao
+                      </option>
+
+                      <option value="Unassigned">
+                        Unassigned
+                      </option>
+                    </select>
+                  </FormField>
+
+                  <FormField
+                    label="Tags"
+                    helperText="Separate tags using commas."
                   >
-                    <option value="High">High</option>
-                    <option value="Medium">
-                      Medium
-                    </option>
-                    <option value="Low">Low</option>
-                  </select>
-                </label>
+                    <input
+                      name="tags"
+                      type="text"
+                      placeholder="Hot lead, Website, VIP"
+                      value={formData.tags}
+                      onChange={handleChange}
+                    />
+                  </FormField>
 
-                <label>
-                  Estimated value
+                  <FormField
+                    label="Internal notes"
+                    fullWidth
+                  >
+                    <textarea
+                      name="notes"
+                      rows="5"
+                      placeholder="Add information about the customer's requirements, previous discussions or next steps..."
+                      value={formData.notes}
+                      onChange={handleChange}
+                    />
+                  </FormField>
+                </div>
+              </section>
 
-                  <input
-                    min="0"
-                    name="value"
-                    type="number"
-                    placeholder="15000"
-                    value={formData.value}
-                    onChange={handleInputChange}
-                  />
-                </label>
-
-                <label className="lead-owner-field">
-                  Assigned to
-
-                  <input
-                    name="assignedTo"
-                    type="text"
-                    placeholder={defaultOwner}
-                    value={formData.assignedTo}
-                    onChange={handleInputChange}
-                  />
-                </label>
-              </div>
-
-              <div className="lead-form-actions">
+              <footer className="lead-form-footer">
                 <button
-                  className="secondary-button"
                   type="button"
-                  disabled={isSaving}
+                  className="lead-cancel-button"
                   onClick={closeModal}
+                  disabled={isSubmitting}
                 >
                   Cancel
                 </button>
 
                 <button
-                  className="primary-button"
                   type="submit"
-                  disabled={isSaving}
+                  className="lead-submit-button"
+                  disabled={isSubmitting}
                 >
-                  {isSaving
-                    ? "Saving..."
-                    : editingLeadId
-                      ? "Save changes"
-                      : "Add lead"}
+                  <UserPlus size={18} />
+
+                  {isSubmitting
+                    ? "Creating lead..."
+                    : "Create lead"}
                 </button>
-              </div>
+              </footer>
             </form>
           </div>
         </div>
       )}
-    </AppLayout>
+    </main>
   );
+}
+
+function FormField({
+  label,
+  required = false,
+  fullWidth = false,
+  helperText = "",
+  children,
+}) {
+  return (
+    <label
+      className={`lead-field ${
+        fullWidth ? "lead-field-full" : ""
+      }`}
+    >
+      <span className="lead-field-label">
+        {label}
+        {required && <b> *</b>}
+      </span>
+
+      {children}
+
+      {helperText && <small>{helperText}</small>}
+    </label>
+  );
+}
+
+function getInitials(name) {
+  if (!name) {
+    return "NA";
+  }
+
+  return name
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join("");
+}
+
+function normalizeClassName(value) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/\s+/g, "-");
+}
+
+function formatMoney(value, currency = "EUR") {
+  try {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency,
+      maximumFractionDigits: 0,
+    }).format(Number(value || 0));
+  } catch {
+    return `${Number(value || 0).toLocaleString()} ${currency}`;
+  }
+}
+
+function formatDate(value, includeTime = false) {
+  if (!value) {
+    return "Not scheduled";
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "Not scheduled";
+  }
+
+  return new Intl.DateTimeFormat("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    ...(includeTime
+      ? {
+          hour: "2-digit",
+          minute: "2-digit",
+        }
+      : {}),
+  }).format(date);
 }
 
 export default Leads;

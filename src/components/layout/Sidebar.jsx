@@ -1,140 +1,234 @@
 import {
   BarChart3,
   CalendarDays,
-  CheckSquare,
-  KanbanSquare,
+  CheckSquare2,
   LayoutDashboard,
   LogOut,
+  PanelLeftClose,
+  PanelLeftOpen,
   Settings,
-  UserPlus,
-  Users,
+  Target,
+  UserRoundPlus,
+  UsersRound,
 } from "lucide-react";
-import { NavLink, useNavigate } from "react-router-dom";
+import { NavLink } from "react-router-dom";
 
 import { useAuth } from "../../context/AuthContext";
 
-const menuItems = [
+const navigationItems = [
   {
-    name: "Dashboard",
+    label: "Dashboard",
     path: "/",
     icon: LayoutDashboard,
   },
   {
-    name: "Customers",
+    label: "Customers",
     path: "/customers",
-    icon: Users,
+    icon: UsersRound,
   },
   {
-    name: "Leads",
+    label: "Leads",
     path: "/leads",
-    icon: UserPlus,
+    icon: UserRoundPlus,
   },
   {
-    name: "Pipeline",
+    label: "Pipeline",
     path: "/pipeline",
-    icon: KanbanSquare,
+    icon: Target,
   },
   {
-    name: "Tasks",
+    label: "Tasks",
     path: "/tasks",
-    icon: CheckSquare,
+    icon: CheckSquare2,
   },
   {
-    name: "Calendar",
+    label: "Calendar",
     path: "/calendar",
     icon: CalendarDays,
   },
   {
-    name: "Analytics",
+    label: "Analytics",
     path: "/analytics",
     icon: BarChart3,
   },
   {
-    name: "Settings",
+    label: "Settings",
     path: "/settings",
     icon: Settings,
   },
 ];
 
-function Sidebar() {
-  const navigate = useNavigate();
+function getInitials(name, email) {
+  const source = name?.trim() || email?.trim() || "LeadFlow User";
+
+  return source
+    .split(/\s+/)
+    .map((part) => part[0])
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
+}
+
+function Sidebar({
+  collapsed,
+  onToggle,
+  mobileOpen,
+  onCloseMobile,
+}) {
   const { user, signOut } = useAuth();
 
-  const displayName =
+  const fullName =
     user?.user_metadata?.full_name ||
     user?.email?.split("@")[0] ||
     "LeadFlow User";
 
-  const initial = displayName
-    .trim()
-    .charAt(0)
-    .toUpperCase();
+  const role =
+    user?.user_metadata?.role || "Administrator";
 
   async function handleLogout() {
-    const { error } = await signOut();
-
-    if (error) {
-      console.error("Logout error:", error.message);
-      return;
-    }
-
-    navigate("/login", { replace: true });
+    await signOut();
   }
 
   return (
-    <aside className="sidebar">
-      <div className="logo">
-        <div className="logo-icon">L</div>
+    <>
+      {mobileOpen && (
+        <button
+          className="sidebar-mobile-backdrop"
+          type="button"
+          aria-label="Close navigation"
+          onClick={onCloseMobile}
+        />
+      )}
 
-        <div className="logo-text">
-          <h2>LeadFlow</h2>
-          <span>CRM</span>
+      <aside
+        className={`app-sidebar ${
+          collapsed ? "collapsed" : ""
+        } ${mobileOpen ? "mobile-open" : ""}`}
+      >
+        <div className="sidebar-top">
+          <div className="sidebar-brand">
+            <div className="sidebar-logo">L</div>
+
+            {!collapsed && (
+              <div className="sidebar-brand-copy">
+                <strong>LeadFlow</strong>
+                <span>CRM</span>
+              </div>
+            )}
+          </div>
+
+          <button
+            className="sidebar-collapse-button"
+            type="button"
+            aria-label={
+              collapsed
+                ? "Expand sidebar"
+                : "Collapse sidebar"
+            }
+            onClick={onToggle}
+          >
+            {collapsed ? (
+              <PanelLeftOpen size={18} />
+            ) : (
+              <PanelLeftClose size={18} />
+            )}
+          </button>
         </div>
-      </div>
 
-      <nav className="sidebar-nav">
-        {menuItems.map((item) => {
-          const Icon = item.icon;
+        {!collapsed && (
+          <div className="sidebar-workspace-card">
+            <div className="workspace-icon">VF</div>
 
-          return (
-            <NavLink
-              key={item.path}
-              to={item.path}
-              end={item.path === "/"}
-              className={({ isActive }) =>
-                isActive
-                  ? "nav-link active"
-                  : "nav-link"
-              }
+            <div>
+              <span>Workspace</span>
+              <strong>
+                {user?.user_metadata?.company ||
+                  "VectorForge Prime"}
+              </strong>
+            </div>
+          </div>
+        )}
+
+        <nav className="sidebar-navigation">
+          {!collapsed && (
+            <p className="sidebar-section-label">
+              Workspace
+            </p>
+          )}
+
+          {navigationItems.map((item) => {
+            const Icon = item.icon;
+
+            return (
+              <NavLink
+                className={({ isActive }) =>
+                  `sidebar-link ${
+                    isActive ? "active" : ""
+                  }`
+                }
+                end={item.path === "/"}
+                key={item.path}
+                to={item.path}
+                onClick={onCloseMobile}
+              >
+                <span className="sidebar-link-icon">
+                  <Icon size={19} strokeWidth={2} />
+                </span>
+
+                {!collapsed && (
+                  <span className="sidebar-link-label">
+                    {item.label}
+                  </span>
+                )}
+
+                {!collapsed && (
+                  <span className="sidebar-active-dot" />
+                )}
+              </NavLink>
+            );
+          })}
+        </nav>
+
+        <div className="sidebar-bottom">
+          {!collapsed && (
+            <div className="sidebar-help-card">
+              <div className="sidebar-help-icon">
+                <Target size={18} />
+              </div>
+
+              <div>
+                <strong>Sales workspace</strong>
+                <span>
+                  Keep your pipeline moving forward.
+                </span>
+              </div>
+            </div>
+          )}
+
+          <div className="sidebar-user">
+            <div className="sidebar-avatar">
+              {getInitials(fullName, user?.email)}
+            </div>
+
+            {!collapsed && (
+              <div className="sidebar-user-copy">
+                <strong>{fullName}</strong>
+                <span>{role}</span>
+              </div>
+            )}
+
+            <button
+              className="sidebar-logout-button"
+              type="button"
+              aria-label="Sign out"
+              onClick={handleLogout}
             >
-              <Icon size={20} strokeWidth={2} />
-              <span>{item.name}</span>
-            </NavLink>
-          );
-        })}
-      </nav>
-
-      <div className="sidebar-footer">
-        <div className="sidebar-user">
-          <div className="avatar">{initial}</div>
-
-          <div className="sidebar-user-info">
-            <strong>{displayName}</strong>
-            <span>Administrator</span>
+              <LogOut size={17} />
+            </button>
           </div>
         </div>
-
-        <button
-          className="sidebar-logout-button"
-          type="button"
-          aria-label="Log out"
-          title="Log out"
-          onClick={handleLogout}
-        >
-          <LogOut size={18} />
-        </button>
-      </div>
-    </aside>
+      </aside>
+    </>
   );
 }
 

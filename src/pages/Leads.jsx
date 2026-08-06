@@ -24,7 +24,7 @@ import {
   getLeads,
 } from "../services/leadsService";
 
-import "../styles/Leads.css";
+import "../styles/leads.css";
 
 const initialFormData = {
   name: "",
